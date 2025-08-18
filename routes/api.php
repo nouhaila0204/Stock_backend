@@ -146,6 +146,7 @@ Route::middleware(['auth:sanctum', ResponsableStockMiddleware::class])->group(fu
 
 //employe
 Route::middleware(['auth:sanctum', EmployeMiddleware::class])->group(function () {
+    Route::get('/employe/products', [ProductController::class, 'indexProduit']);
     Route::get('/employe/voirStock', [EmployeController::class, 'consulterStock']);
     Route::get('/employe/historiquesdemandes', [EmployeController::class, 'consulterHistoriqueDemande']);
     Route::post('/employe/demandes', [EmployeController::class, 'storeDemande']);

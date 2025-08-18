@@ -16,9 +16,17 @@ use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
-    public function index()
+    //pour responsable
+    public function showProduit()
     {
         return Product::with(['tva', 'sousFamille'])->get();
+    }
+
+
+    //pour employee
+    public function indexProduit()
+    {
+        return Product::select(['id', 'name'])->get();
     }
 
     // Ajouter un produit

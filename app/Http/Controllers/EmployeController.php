@@ -11,6 +11,8 @@ use App\Models\SousFamilleProduit;
 use App\Models\TVA;
 use App\Models\FamilleProduit;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\ProductController;
+use App\Http\Resources\ProductResource;
 use App\Http\Middleware\EmployeMiddleware;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -36,7 +38,6 @@ class EmployeController extends Controller
 }
 
 
-    // 📄 Consulter l'historique des demandes de l'employé connecté
     public function consulterHistoriqueDemande()
 {
     $employe = Employe::where('user_id', Auth::id())->first();
@@ -45,18 +46,21 @@ class EmployeController extends Controller
         return response()->json(['message' => 'Employé non trouvé'], 404);
     }
 
-    $demandes = Demande::where('user_id', Auth::id())->get();
+    // Charger la relation produit
+    $demandes = Demande::with('produit')
+        ->where('user_id', Auth::id())
+        ->get();
 
     return response()->json($demandes);
 }
 
-    // ➕ Créer une nouvelle demande
-public function storeDemande(Request $request)
+
+    public function storeDemande(Request $request)
 {
     $request->validate([
         'raison' => 'required|string|max:255',
-        'produit' => 'nullable|string|exists:products,name',
-        'quantite' => 'nullable|integer|min:1'
+        'produit_id' => 'required|exists:products,id',
+        'quantite' => 'required|integer|min:1'
     ]);
 
     // Récupérer l'employé connecté
@@ -66,27 +70,18 @@ public function storeDemande(Request $request)
         return response()->json(['message' => 'Employé non trouvé'], 404);
     }
 
-    $produit_id = null;
-
-    // Si l'utilisateur a choisi un produit, récupérer son ID
-    if (!empty($request->produit)) {
-        $produit = \App\Models\Product::where('name', $request->produit)->first();
-        if ($produit) {
-            $produit_id = $produit->id;
-        }
-    }
-
     // Création de la demande
     $demande = \App\Models\Demande::create([
         'user_id'    => $employe->user_id,
         'raison'     => $request->raison,
-        'produit_id' => $produit_id, // peut être null
+        'produit_id' => $request->produit_id, // <-- direct
         'quantite'   => $request->quantite,
-        'etat'       => 'en attente', // Par défaut
+        'etat'       => 'en attente',
     ]);
 
     return response()->json($demande, 201);
 }
+
 
     // ✏ Mettre à jour une demande
     public function updateDemande(Request $request, $id)

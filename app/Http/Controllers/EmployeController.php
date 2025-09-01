@@ -76,7 +76,7 @@ class EmployeController extends Controller
         'raison'     => $request->raison,
         'produit_id' => $request->produit_id, // <-- direct
         'quantite'   => $request->quantite,
-        'etat'       => 'en attente',
+        'etat'       => 'en_attente',
     ]);
 
     return response()->json($demande, 201);

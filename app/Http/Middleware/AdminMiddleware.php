@@ -10,12 +10,21 @@ class AdminMiddleware
 {
     public function handle(Request $request, Closure $next): Response
     {
-        // Vérifie si l'utilisateur est connecté et a le rôle 'admin'
-        if (auth()->check() && auth()->user()->role === 'admin') {
-            return $next($request);
+        // Vérifie d'abord si l'utilisateur est authentifié via Sanctum
+        if (!auth()->check()) {
+            return response()->json([
+                'message' => 'Vous devez être connecté pour accéder à cette ressource'
+            ], 401);
         }
 
-        abort(403, 'Accès non autorisé - réservé à l\'admin');
+        // Ensuite vérifie le rôle admin
+        if (auth()->user()->role !== 'admin') {
+            return response()->json([
+                'message' => 'Accès non autorisé - réservé aux administrateurs'
+            ], 403);
+        }
+
+        return $next($request);
     }
 }
 

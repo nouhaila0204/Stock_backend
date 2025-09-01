@@ -19,6 +19,7 @@ use App\Http\Controllers\DemandeController;
 use App\Http\Controllers\ResponsableStockController;
 use App\Http\Controllers\EmployeController;
 use App\Http\Controllers\FournisseurController;
+use App\Http\Controllers\OrganigrammeController;
 
 // Routes publiques (pas besoin d'authentification)
 Route::post('/login', [AuthController::class, 'login']);
@@ -126,16 +127,35 @@ Route::middleware(['auth:sanctum', ResponsableStockMiddleware::class])->group(fu
 
 
    //admin
-    Route::middleware(['auth:sanctum', AdminMiddleware::class])->group(function () {
+Route::middleware(['auth:sanctum', AdminMiddleware::class])->group(function () {
     Route::post('/addUsers', [AuthController::class, 'register']);// ➕ Ajouter un utilisateur 
     Route::get('/usersview', [AdminController::class, 'indexUser']);          // 🔍 Voir tous les utilisateurs
+    Route::get('/usersview/{id}', [AdminController::class, 'showUser']);      // 👁 Voir un utilisateur
     Route::put('/UPusers/{id}', [AdminController::class, 'updateUser']);    // ✏ Modifier un utilisateur
     Route::delete('/suppusers/{id}', [AdminController::class, 'destroyUser']); // ❌ Supprimer un utilisateur
 
 
-   Route::get('/organigrammes', [AdminController::class, 'organigrammeIndex']);       // Tous
-   Route::get('/organigrammes/search', [AdminController::class, 'organigrammeSearch']);
-    Route::get('/organigrammes/{id}', [AdminController::class, 'organigrammeShow']);   // Un seul
+
+    
+    // Récupère tout l'organigramme sous forme d'arbre hiérarchique
+    Route::get('/organigrammes/all-for-tree', [OrganigrammeController::class, 'getAllForTree']);
+    
+    // Récupère tous les éléments en format plat (pour debug)
+    Route::get('/organigrammes/all-flat', [OrganigrammeController::class, 'getAllFlat']);
+
+    // Test de structure (pour vérifier les données)
+    Route::get('/organigrammes/test-structure', [OrganigrammeController::class, 'testStructure']);
+
+    // Routes existantes (à conserver)
+    Route::get('/organigrammes', [OrganigrammeController::class, 'index']);
+    Route::get('/organigrammes/dg/children', [OrganigrammeController::class, 'getDGChildren']);
+    Route::get('/organigrammes/{id}/children', [OrganigrammeController::class, 'getChildren']);
+    Route::get('/organigrammes/direction/{directionId}/sous-directions', [OrganigrammeController::class, 'getSousDirections']);
+    Route::get('/organigrammes/agence-territoriale/{agenceTerrId}/agences', [OrganigrammeController::class, 'getAgences']);
+
+
+   Route::get('/organigrammes/search', [OrganigrammeController::class, 'organigrammeSearch']);
+    Route::get('/organigrammes/{id}', [OrganigrammeController::class, 'organigrammeShow']);   // Un seul
     Route::post('/addOrganigrammes', [AdminController::class, 'organigrammeStore']);      // Créer
     Route::put('/organigrammes/{id}', [AdminController::class, 'organigrammeUpdate']); // Modifier
     Route::delete('/organigrammes/{id}', [AdminController::class, 'organigrammeDestroy']); // Supprimer

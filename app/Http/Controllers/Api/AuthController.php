@@ -16,13 +16,26 @@ class AuthController extends Controller
      */
     public function register(Request $request)
 {
+    
+
+     if (!auth('sanctum')->check()) {
+        return response()->json([
+            'message' => 'Vous devez être connecté pour accéder à cette ressource'
+        ], 401);
+    }
+
+
     $request->validate([
-        'name' => 'required|string',
+        'nom' => 'required|string',
+        'prenom' => 'required|string',
         'email' => 'required|email|unique:users',
         'password' => 'required|string|min:6',
         'role' => 'required|in:admin,employe,responsablestock',
-        'poste' => 'required_if:role,employe|string'
+        'poste' => 'required_if:role,employe|string',
+        'organigramme_id' => 'required|exists:organigrammes,id',
+
     ]);
+    $fullName = $request['prenom'] . ' ' . $request['nom'];
 
     // Vérifie qu'il n'existe qu'un seul responsable du stock
     if ($request->role === 'responsablestock') {
@@ -48,10 +61,12 @@ class AuthController extends Controller
 
     // Créer d'abord l'utilisateur
     $user = User::create([
-        'name' => $request->name,
+        'name' => $fullName, // ici on insère le fullname
         'email' => $request->email,
         'password' => bcrypt($request->password),
         'role' => $request->role,
+        'organigramme_id' => $request->organigramme_id,
+
     ]);
 
     // Ensuite, si c'est un employé, créer la ligne dans la table employes

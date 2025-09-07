@@ -45,25 +45,22 @@ Route::middleware(['auth:sanctum', ResponsableStockMiddleware::class])->group(fu
         ->name('entrees.imprimer');// Route pour imprimer/télécharger le bon d'entrée (PDF)
 
 
-//sorties
-    Route::get('/sorties/search', [SortieController::class, 'search']);
-    Route::get('/sorties', [SortieController::class, 'indexSortie']);
-    Route::get('/sorties/{id}', [SortieController::class, 'showSortie']);
-    Route::post('/sorties', [SortieController::class, 'ajouterSortie']);
-    Route::put('/sorties/{id}', [SortieController::class, 'updateSortie']);
-    Route::delete('/sorties/{id}', [SortieController::class, 'suppSortie']);
-    Route::get('/sorties/filtrer', [SortieController::class, 'filtrer']); // ✅ Place-la ici AVANT /{id}
-    Route::get('/sorties/{id}', [SortieController::class, 'showSortie']);
-    // Route pour afficher le bon de sortie (HTML)
-    Route::get('/sorties/{id}/bon', [SortieController::class, 'afficherBonSortie'])
-        ->name('sorties.bon');
-    // Route pour imprimer/télécharger le bon de sortie (PDF)
-    Route::get('/sorties/{id}/imprimer', [SortieController::class, 'imprimerBonSortie'])
-        ->name('sorties.imprimer');
+ //sorties
+ Route::get('/sorties', [SortieController::class, 'indexSortie']);
+ Route::post('/sorties', [SortieController::class, 'ajouterSortie']);
+ Route::get('/sorties/filtrer', [SortieController::class, 'filtrer']);
+ Route::get('/sorties/search', [SortieController::class, 'search']);
+
+ // Les routes avec paramètres DOIVENT venir après
+ Route::get('/sorties/{id}', [SortieController::class, 'showSortie']);
+ Route::get('/sorties/{id}/bon', [SortieController::class, 'afficherBonSortie']);
+ Route::get('/sorties/{id}/imprimer', [SortieController::class, 'imprimerBonSortie']);
+ Route::put('/sorties/{id}', [SortieController::class, 'updateSortie']);
+ Route::delete('/sorties/{id}', [SortieController::class, 'suppSortie']);
 
 //stock
     Route::get('/stock/filtrer', [StockController::class, 'filtrer']);
-    Route::get('/stock', [StockController::class, 'index']);
+    Route::get('/stockView', [StockController::class, 'index']);
     Route::get('/stock/{id}', [StockController::class, 'show']);
     Route::get('/stock/export-stock/{annee}', [StockController::class, 'exportStock']);
 

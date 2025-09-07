@@ -111,11 +111,16 @@ class AuthController extends Controller
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        // Ajoute le rôle de l'utilisateur (assure-toi que la colonne 'role' existe dans ta table users)
         return response()->json([
             'success' => true,
             'message' => 'Login successful',
             'data' => [
-                'user' => $user,
+                'user' => [
+                    'id' => $user->id,
+                    'email' => $user->email,
+                    'role' => $user->role, 
+                ],
                 'token' => $token,
                 'token_type' => 'Bearer'
             ]

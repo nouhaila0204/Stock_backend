@@ -9,7 +9,13 @@ class Alerte extends Model
 {
     protected $fillable = [
         'produit_id',
-        'date'
+        'date', // Date de déclenchement de l'alerte
+        'is_viewed' // Indique si l'alerte a été vue (par défaut false)
+    ];
+
+    protected $casts = [
+        'is_viewed' => 'boolean', // Cast pour gérer true/false
+        'date' => 'datetime' // Cast pour gérer la date
     ];
 
     public function produit()

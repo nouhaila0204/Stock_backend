@@ -48,10 +48,10 @@ class SousFamilleProduitController extends Controller
         return response()->json(['message' => 'Sous-famille supprimée']);
     }
 
-    // 🔍 Rechercher sous-famille par mot-clé - CORRIGÉ
-    public function search(Request $request)
+ // 🔍 Rechercher sous-famille par mot-clé - CORRIGÉ
+public function search(Request $request)
 {
-    $query = SousFamilleProduit::query();
+    $query = SousFamilleProduit::with('famille'); // Précharge la relation famille
 
     if ($request->has('nom')) {
         $query->where('nom', 'like', '%' . $request->nom . '%');
@@ -61,7 +61,7 @@ class SousFamilleProduitController extends Controller
         $query->where('famille_produit_id', $request->famille_id);
     }
 
-    return response()->json($query->get());
+    $results = $query->get();
+    return response()->json($results);
 }
-
 }

@@ -69,14 +69,22 @@ public function update(Request $request, $id)
 
 
     // ❌ Supprimer une TVA
-    public function destroy($id)
-    {
+   public function destroy($id)
+{
+    $tva = TVA::findOrFail($id);
 
-        $tva = TVA::findOrFail($id);
-        $tva->delete();
-
-        return response()->json(['message' => 'TVA supprimée'], 200);
+    // Vérifier si des produits sont liés
+    if ($tva->produits()->count() > 0) {
+        return response()->json([
+            'message' => 'Impossible de supprimer cette TVA, elle est utilisée par des produits.',
+            'error' => true
+        ], 400);
     }
+
+    $tva->delete();
+    return response()->json(['message' => 'TVA supprimée avec succès'], 200);
+}
+
 
     // 🔍 Rechercher TVA par mot-clé
     public function rechercher(Request $request)

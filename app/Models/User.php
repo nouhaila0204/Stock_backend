@@ -48,10 +48,10 @@ class User extends Authenticatable
     }
 
     // Relations
-    public function demandes()
-    {
-        return $this->hasMany(Demande::class, 'employe_id');
-    }
+public function demandes()
+{
+    return $this->hasMany(Demande::class, 'user_id');
+}
 
     public function employe()
     {

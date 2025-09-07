@@ -16,7 +16,6 @@ class AlerteController extends Controller
     {
         $request->validate([
             'produit_id' => 'required|exists:products,id',
-
             'date' => 'required|date'
         ]);
 
@@ -28,6 +27,16 @@ class AlerteController extends Controller
         return Alerte::with('produit')->findOrFail($id);
     }
 
+    public function update(Request $request, $id)
+    {
+        $alerte = Alerte::findOrFail($id);
+        $request->validate([
+            'is_viewed' => 'boolean'
+        ]);
+        $alerte->update(['is_viewed' => $request->input('is_viewed', false)]);
+        return response()->json(['message' => 'Alerte mise à jour', 'data' => $alerte]);
+    }
+
     public function destroy($id)
     {
         $alerte = Alerte::findOrFail($id);
@@ -36,4 +45,3 @@ class AlerteController extends Controller
         return response()->json(['message' => 'Alerte supprimée']);
     }
 }
-

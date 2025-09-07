@@ -16,6 +16,7 @@ use App\Models\Fournisseur;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Models\Alerte; 
 
 
 class ResponsableStockController extends Controller
@@ -28,13 +29,11 @@ public function statistiquesGlobales()
 
     // Produits en rupture (stock <= 5)
     $ruptures = Product::select('id', 'name', 'stock')
-        ->where('stock', '<=', 5)
+        ->where('stock', '=', 0)
         ->get();
 
     // Produits en alerte (stock <= stock_min)
-    $alertes = Product::select('id', 'name', 'stock', 'stock_min')
-        ->whereColumn('stock', '<=', 'stock_min')
-        ->get();
+    $alertes = Product::whereColumn('stock', '<=', 'stock_min')->count();
 
     // Top 5 produits les plus demandés
     $topProduits = Product::select('products.id', 'products.name')
@@ -59,6 +58,15 @@ public function statistiquesGlobales()
         ->orderByDesc('total')
         ->first();
 
+    // Nombre total de produits en stock
+    $totalStock = Stock::count();
+
+    //Nombre Demande
+    $totalDemande = Demande::where('etat', 'en_attente')->count();
+
+    // Nombre de produits non sortis
+    $produitsNonSortis = Product::whereDoesntHave('sorties')->select('id', 'name', 'stock')->get();
+
     return response()->json([
         'total_produits' => $totalProduits,
         'produits_en_rupture' => $ruptures,
@@ -66,24 +74,33 @@ public function statistiquesGlobales()
         'produits_les_plus_demandes' => $topProduits,
         'fournisseur_plus_utilise' => $fournisseurPlusUtilise ? $fournisseurPlusUtilise->raisonSocial : null,
         'tva_plus_utilisee' => $tvaPlusUtilisee ? $tvaPlusUtilisee->taux : null,
+        'total_stock' => $totalStock,
+        'produits_non_sortis' => $produitsNonSortis,
+        'demandes_en_attente' => $totalDemande,
     ]);
 }
 
 
 
 
-// 📦 Consulter les alertes du stock
-    public function voirAlertes()
+public function voirAlertes()
 {
-    // Récupérer tous les produits avec stock <= stock_min
     $productsEnAlerte = Product::whereColumn('stock', '<=', 'stock_min')->get();
+
+    foreach ($productsEnAlerte as $product) {
+        Alerte::updateOrCreate(
+            ['produit_id' => $product->id],
+            ['date' => now()]
+        );
+    }
+
+    $alertes = Alerte::with(['produit.sousFamille', 'produit.sousFamille.famille'])->get();
 
     return response()->json([
         'message' => 'Alertes de stock faible',
-        'alertes' => $productsEnAlerte
-]);
+        'alertes' => $alertes
+    ]);
 }
-
 
 
 
@@ -93,14 +110,24 @@ public function indexFournisseurs()
     return response()->json(Fournisseur::all());
 }
 
+    // 🔍 Afficher Fournisseur par ID
+    public function Show($id)
+    {
+        $fournisseur = Fournisseur::findOrFail($id);
+        return response()->json($fournisseur);
+    }
+
+
 public function storeFournisseur(Request $request)
 {
     $request->validate([
-        'raisonSocial' => 'required|string',
+        'raisonSocial' => 'required|string|max:255',
         'email' => 'required|email|unique:fournisseurs,email',
+        'adresse' => 'sometimes|string|max:255', // Optionnel, max 255 caractères
+        'telephone' => 'required|string|max:20|min:10', // Requis, max 20 caractères (ajuste selon besoin)
     ]);
 
-    $fournisseur = Fournisseur::create($request->only('raisonSocial', 'email'));
+    $fournisseur = Fournisseur::create($request->only(['raisonSocial', 'email', 'adresse', 'telephone']));
     return response()->json(['message' => 'Fournisseur ajouté avec succès', 'data' => $fournisseur], 201);
 }
 
@@ -109,13 +136,16 @@ public function updateFournisseur(Request $request, $id)
     $fournisseur = Fournisseur::findOrFail($id);
 
     $request->validate([
-        'raisonSocial' => 'required|string',
+        'raisonSocial' => 'required|string|max:255',
         'email' => 'required|email|unique:fournisseurs,email,' . $id,
+        'adresse' => 'sometimes|string|max:255', // Optionnel, max 255 caractères
+        'telephone' => 'required|string|max:20|min:10', // Requis, max 20 caractères (ajuste selon besoin)
     ]);
 
-    $fournisseur->update($request->only('raisonSocial', 'email'));
+    $fournisseur->update($request->only(['raisonSocial', 'email', 'adresse', 'telephone']));
     return response()->json(['message' => 'Fournisseur modifié avec succès', 'data' => $fournisseur]);
 }
+
 public function destroyFournisseur($id)
 {
     $fournisseur = Fournisseur::findOrFail($id);
@@ -126,27 +156,32 @@ public function destroyFournisseur($id)
 
 
 
+
+
     //Validation des demandes
-    public function validerDemande($id)
-    {
-
-        $demande = Demande::findOrFail($id);
-        $demande->etat = 'validée';
-        $demande->save();
-
-        return response()->json(['message' => 'Demande validée avec succès']);
+public function validerDemande($id)
+{
+    $demande = Demande::findOrFail($id);
+    if (!auth()->user()->isResponsableStock()) {
+        return response()->json(['message' => 'Non autorisé'], 403);
     }
+    $demande->etat = 'validée';
+    $demande->save();
+    return response()->json(['message' => 'Demande validée avec succès', 'data' => $demande]);
+}
 
-    // ❌ Refuser une demande
-    public function refuserDemande($id)
-    {
-
-        $demande = Demande::findOrFail($id);
-        $demande->etat = 'refusée';
-        $demande->save();
-
-        return response()->json(['message' => 'Demande refusée avec succès']);
+public function refuserDemande($id)
+{
+    $demande = Demande::findOrFail($id);
+    if (!auth()->user()->isResponsableStock()) {
+        return response()->json(['message' => 'Non autorisé'], 403);
     }
+    $demande->etat = 'refusée';
+    $demande->save();
+    return response()->json(['message' => 'Demande refusée avec succès', 'data' => $demande]);
+}
+
+
 
     // 🔁 Changer l'état d'une demande (optionnel)
     public function changerEtatDemande($id, Request $request)
@@ -164,19 +199,18 @@ public function destroyFournisseur($id)
     }
 
     // 📋 Lister toutes les demandes par état
-    public function demandesParEtat($etat)
-    {
-
-        if (!in_array($etat, ['en_attente', 'validée', 'refusée'])) {
-            return response()->json(['message' => 'État invalide'], 400);
-        }
-
-        $demandes = Demande::with('produit', 'user')
-            ->where('etat', $etat)
-            ->get();
-
-        return response()->json($demandes);
+   public function demandesParEtat($etat)
+{
+    if (!in_array($etat, ['en_attente', 'validée', 'refusée'])) {
+        return response()->json(['message' => 'État invalide'], 400);
     }
+
+    $demandes = Demande::with(['produit', 'user.employe', 'user.organigramme'])
+        ->where('etat', $etat)
+        ->get();
+
+    return response()->json($demandes);
+}
 
     
 

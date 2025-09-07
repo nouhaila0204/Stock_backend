@@ -21,6 +21,7 @@ use App\Http\Controllers\EmployeController;
 use App\Http\Controllers\FournisseurController;
 use App\Http\Controllers\OrganigrammeController;
 
+
 // Routes publiques (pas besoin d'authentification)
 Route::post('/login', [AuthController::class, 'login']);
 
@@ -35,6 +36,7 @@ Route::middleware(['auth:sanctum', ResponsableStockMiddleware::class])->group(fu
 //entrees
    Route::get('/entrees/filtrer', [EntreeController::class, 'filtrer']);
    Route::get('/entrees', [EntreeController::class, 'showEntree']);
+   Route::get('/entrees/{id}', [EntreeController::class, 'show']);
    Route::post('/entrees', [EntreeController::class, 'ajouterEntree']);
    Route::delete('/entrees/{id}', [EntreeController::class, 'suppEntree']);
    Route::put('/entrees/{id}', [EntreeController::class, 'updateEntree']);
@@ -64,19 +66,17 @@ Route::middleware(['auth:sanctum', ResponsableStockMiddleware::class])->group(fu
     Route::get('/stock/{id}', [StockController::class, 'show']);
     Route::get('/stock/export-stock/{annee}', [StockController::class, 'exportStock']);
 
-    //alertes
-    Route::apiResource('alertes', AlerteController::class);
 
-    //demandes
-    Route::apiResource('demandes', DemandeController::class);
+
+
 
     // 🔐 Produits
     Route::get('products/search', [ProductController::class, 'search']);
-    Route::get('/products', [ProductController::class, 'showProduit']);
+    Route::get('/products', [ProductController::class, 'index']);
     Route::post('/products', [ProductController::class, 'ajouterProduit']);
     Route::put('/products/{id}', [ProductController::class, 'updateProduit']);
+    Route::get('/products/{product}', [ProductController::class, 'showProduit']);
     Route::delete('/products/{id}', [ProductController::class, 'suppProduit']);
-
 
     // 🔐 TVA
     Route::get('tvas/rechercher', [TVAController::class, 'rechercher']);
@@ -88,7 +88,7 @@ Route::middleware(['auth:sanctum', ResponsableStockMiddleware::class])->group(fu
     Route::delete('/tvas/{id}', [TVAController::class, 'destroy']);
 
     // 🔐 Familles
-    Route::get('familles/search', [FamilleProduitController::class, 'search']);
+    Route::get('/familles/search', [FamilleProduitController::class, 'search']);
     Route::apiResource('familles', FamilleProduitController::class);
     Route::get('/familles', [FamilleProduitController::class, 'index']);
     Route::get('/familles/{id}', [FamilleProduitController::class, 'show']);
@@ -105,22 +105,34 @@ Route::middleware(['auth:sanctum', ResponsableStockMiddleware::class])->group(fu
     Route::put('/sous-familles/{id}', [SousFamilleProduitController::class, 'update']);
     Route::delete('/sous-familles/{id}', [SousFamilleProduitController::class, 'destroy']);
 
+    
+    //alertes
+    Route::apiResource('alertes', AlerteController::class);
+    Route::get('/alertes', [ResponsableStockController::class, 'voirAlertes']);
+    Route::put('/alertes/{id}', [AlerteController::class, 'update']);
 
+    //demandes
+    Route::apiResource('demandes', DemandeController::class);
     Route::get('/demande/{etat}', [ResponsableStockController::class, 'demandesParEtat']);
     Route::put('/demande/{id}/valider', [ResponsableStockController::class, 'validerDemande']);
     Route::put('/demande/{id}/refuser', [ResponsableStockController::class, 'refuserDemande']);
     Route::put('/demande/{id}/changer-etat', [ResponsableStockController::class, 'changerEtatDemande']);
 
+
+    //FOURNISSEURS
     Route::get('/fournisseurs', [ResponsableStockController::class, 'indexFournisseurs']);
     Route::post('/fournisseurs', [ResponsableStockController::class, 'storeFournisseur']);
     Route::put('/fournisseurs/{id}', [ResponsableStockController::class, 'updateFournisseur']);
     Route::delete('/fournisseurs/{id}', [ResponsableStockController::class, 'destroyFournisseur']);
-
-    Route::get('/alertes', [ResponsableStockController::class, 'voirAlertes']);
-
+    Route::get('/fournisseurs/{id}', [ResponsableStockController::class, 'Show']);
+    
+    //DASH
     Route::get('/statistiques', [ResponsableStockController::class, 'statistiquesGlobales']);
 
 });
+
+
+
 
 
    //admin

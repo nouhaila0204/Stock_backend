@@ -58,6 +58,16 @@
       text-align: center;
     }
 
+    .totals-section {
+      margin-top: 20px;
+      text-align: right;
+    }
+
+    .totals-section p {
+      margin: 5px 0;
+      font-weight: bold;
+    }
+
     .signature {
       margin-top: 40px;
       display: flex;
@@ -85,14 +95,16 @@
   </div>
 
   <div class="info-section">
-    <h2>Informations générales</h2>
+    <br>
     <p><strong>Numéro de bon :</strong> {{ $entree->numBond ?? 'N/A' }}</p>
     <p><strong>Code Marché :</strong> {{ $entree->codeMarche ?? 'N/A' }}</p>
-    <p><strong>Date :</strong> {{ \Carbon\Carbon::parse($entree->date)->format('d/m/Y H:i') ?? 'N/A' }}</p>
+    <p><strong>Date :</strong> {{ \Carbon\Carbon::parse($entree->date)->format('d/m/Y') ?? 'N/A' }}</p>
     <p><strong>Fournisseur :</strong> {{ $entree->fournisseur->raisonSocial ?? 'N/A' }}</p>
   </div>
-
-  <h2>Produit reçu</h2>
+  
+  <br>
+  <br>
+  <h2>Produits reçus</h2>
   <table>
     <thead>
       <tr>
@@ -106,17 +118,35 @@
       </tr>
     </thead>
     <tbody>
-      <tr>
-        <td>{{ $entree->produit->reference ?? 'N/A' }}</td>
-        <td>{{ $entree->produit->name ?? 'Produit inconnu' }}</td>
-        <td>{{ $entree->quantite ?? 0 }}</td>
-        <td>{{ number_format($entree->prixUnitaire, 0, '.', ' ') }} DH</td>
-        <td>{{ number_format($entree->produit->tva->taux ?? 0, 2, '.', '') }}%</td>
-        <td>{{ number_format($entree->quantite * $entree->prixUnitaire, 0, '.', ' ') }} DH</td>
-        <td>{{ number_format($entree->quantite * $entree->prixUnitaire * (1 + ($entree->produit->tva->taux ?? 0) / 100), 0, '.', ' ') }} DH</td>
-      </tr>
+      @foreach ($entree->produits as $produit)
+        <tr>
+          <td>{{ $produit->reference ?? 'N/A' }}</td>
+          <td>{{ $produit->name ?? 'Produit inconnu' }}</td>
+          <td>{{ $produit->pivot->quantite ?? 0 }}</td>
+          <td>{{ number_format($produit->pivot->prixUnitaire, 0, '.', ' ') }} DH</td>
+          <td>{{ number_format($produit->tva->taux ?? 0, 2, '.', '') }}%</td>
+          <td>{{ number_format($produit->pivot->quantite * $produit->pivot->prixUnitaire, 0, '.', ' ') }} DH</td>
+          <td>{{ number_format($produit->pivot->quantite * $produit->pivot->prixUnitaire * (1 + ($produit->tva->taux ?? 0) / 100), 0, '.', ' ') }} DH</td>
+        </tr>
+      @endforeach
     </tbody>
   </table>
+
+  <!-- Section des totaux -->
+  <div class="totals-section">
+    @php
+      $totalQuantite = $entree->produits->sum('pivot.quantite');
+      $totalHT = $entree->produits->sum(function ($produit) {
+          return $produit->pivot->quantite * $produit->pivot->prixUnitaire;
+      });
+      $totalTTC = $entree->produits->sum(function ($produit) {
+          return $produit->pivot->quantite * $produit->pivot->prixUnitaire * (1 + ($produit->tva->taux ?? 0) / 100);
+      });
+    @endphp
+    <p><strong>Quantité totale :</strong> {{ $totalQuantite }}</p>
+    <p><strong>Total HT :</strong> {{ number_format($totalHT, 0, '.', ' ') }} DH</p>
+    <p><strong>Total TTC :</strong> {{ number_format($totalTTC, 0, '.', ' ') }} DH</p>
+  </div>
 
   <div class="signature">
     <div>Établi par</div>

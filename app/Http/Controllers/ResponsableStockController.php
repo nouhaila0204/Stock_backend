@@ -27,13 +27,13 @@ public function statistiquesGlobales()
     // Total produits (COUNT)
     $totalProduits = Product::count();
 
-    // Produits en rupture (stock <= 5)
+    // Produits en rupture (stock = 0)
     $ruptures = Product::select('id', 'name', 'stock')
         ->where('stock', '=', 0)
         ->get();
 
     // Produits en alerte (stock <= stock_min)
-    $alertes = Product::whereColumn('stock', '<=', 'stock_min')->count();
+    $alertes = Product::whereColumn('stock', '<', 'stock_min')->count();
 
     // Top 5 produits les plus demandés
     $topProduits = Product::select('products.id', 'products.name')
@@ -42,10 +42,11 @@ public function statistiquesGlobales()
         ->take(5)
         ->get();
 
-    // Fournisseur le plus utilisé (sans charger tous les produits)
-    $fournisseurPlusUtilise = \DB::table('entrees')
+    // Fournisseur le plus utilisé
+    $fournisseurPlusUtilise = \DB::table('entree_product')
+        ->join('entrees', 'entree_product.entree_id', '=', 'entrees.id')
         ->join('fournisseurs', 'entrees.fournisseur_id', '=', 'fournisseurs.id')
-        ->select('fournisseurs.raisonSocial', \DB::raw('COUNT(entrees.produit_id) as total'))
+        ->select('fournisseurs.raisonSocial', \DB::raw('COUNT(entree_product.produit_id) as total'))
         ->groupBy('fournisseurs.id', 'fournisseurs.raisonSocial')
         ->orderByDesc('total')
         ->first();
@@ -61,7 +62,7 @@ public function statistiquesGlobales()
     // Nombre total de produits en stock
     $totalStock = Stock::count();
 
-    //Nombre Demande
+    // Nombre de demandes en attente
     $totalDemande = Demande::where('etat', 'en_attente')->count();
 
     // Nombre de produits non sortis
@@ -85,7 +86,7 @@ public function statistiquesGlobales()
 
 public function voirAlertes()
 {
-    $productsEnAlerte = Product::whereColumn('stock', '<=', 'stock_min')->get();
+    $productsEnAlerte = Product::whereColumn('stock', '<', 'stock_min')->get();
 
     foreach ($productsEnAlerte as $product) {
         Alerte::updateOrCreate(

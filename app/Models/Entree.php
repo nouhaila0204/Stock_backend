@@ -8,22 +8,26 @@ use App\Models\Product;
 
 class Entree extends Model
 {
-    protected $fillable = ['produit_id','numBond','codeMarche','prixUnitaire','quantite','date','fournisseur_id'];
+    use HasFactory;
 
-    public function produit()
+    protected $fillable = ['numBond', 'codeMarche', 'date', 'fournisseur_id'];
+
+    public function produits()
     {
-        return $this->belongsTo(Product::class, 'produit_id');
+        return $this->belongsToMany(Product::class, 'entree_product', 'entree_id', 'produit_id')
+                    ->withPivot('quantite', 'prixUnitaire')
+                    ->withTimestamps();
     }
 
     public function fournisseur()
     {
-    return $this->belongsTo(Fournisseur::class, 'fournisseur_id');
+        return $this->belongsTo(Fournisseur::class, 'fournisseur_id');
     }
 
-    public function user() 
+    public function user()
     {
-    return $this->belongsTo(User::class);
-}
+        return $this->belongsTo(User::class);
+    }
 }
 
 

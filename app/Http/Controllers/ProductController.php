@@ -50,58 +50,30 @@ class ProductController extends Controller
     }
 
     // Ajouter un produit
-    public function ajouterProduit(Request $request)
+public function ajouterProduit(Request $request)
     {
+        $fields = $request->validate([
+            'name' => 'required|string',
+            'reference' => 'required|string|unique:products',
+            'stock_min' => 'required|integer|min:0',
+            'tva_id' => 'required|exists:tvas,id',
+            'sous_famille_produit_id' => 'required|exists:sous_famille_produits,id',
+        ]);
 
-    $fields = $request->validate([
-        'name' => 'required|string',
-        'reference' => 'required|string|unique:products',
-        'numBond' => 'required|string|max:255',
-        'codeMarche' => 'required|string',
-        'date' => 'required|date',
-        'stock' => 'required|integer',
-        'stock_min' => 'required|integer',
-        'price' => 'required|numeric',
-        'tva_id' => 'required|exists:tvas,id',
-        'sous_famille_produit_id' => 'required|exists:sous_famille_produits,id',
-        'fournisseur_id' => 'required|exists:fournisseurs,id' // Si vous souhaitez lier à un fournisseur
-    ]);
+        $produit = Product::create($fields);
 
-    $produit = Product::create($fields);
+        $produit->load([
+            'tva',
+            'sousFamille.famille'
+        ]);
 
-    // Charger les relations
-    $produit->load([
-        'tva',
-        'sousFamille.famille' // on remonte à la famille aussi
-    ]);
+        return response()->json([
+            'message' => 'Produit ajouté avec succès.',
+            'produit' => $produit
+        ], 201);
+    }
 
-    // Étape 3 : Créer une entrée initiale
-    $entree = Entree::create([
-        'produit_id' => $produit->id,
-        'quantite' => $fields['stock'],
-        'prixUnitaire' => $fields['price'],
-        'numBond' => $fields['numBond'],
-        'codeMarche' => $fields['codeMarche'] , // Si vous souhaitez lier à un marché
-        'date' => $fields['date'],
-        'fournisseur_id' => $fields['fournisseur_id'] // Si vous souhaitez lier à un fournisseur
-    ]);
-
-    // Étape 4 : Créer ou mettre à jour le stock
-    $stock = new Stock();
-    $stock->produit_id = $produit->id;
-    $stock->qteEntree = $fields['stock'];
-    $stock->qteSortie = 0;
-    $stock->valeurStock = $fields['stock'] * $fields['price'];
-    $stock->save();
-
-    return response()->json([
-        'message' => 'Produit ajouté avec succès, entrée et stock initial créés.',
-        'produit' => $produit,
-        'entree' => $entree,
-        'stock' => $stock
-    ], 201);
-}
-
+    
     // Supprimer un produit
    public function suppProduit($id)
 {
@@ -127,65 +99,26 @@ class ProductController extends Controller
     return response()->json(['message' => 'Produit supprimé avec succès']);
 }
 
-public function updateProduit(Request $request, $id)
+
+
+ public function updateProduit(Request $request, $id)
     {
         $produit = Product::findOrFail($id);
 
-        // Sauvegarder l'ancien stock
-        $oldStock = $produit->stock;
-
-        // Validation des champs
         $fields = $request->validate([
             'name' => 'sometimes|required|string',
             'reference' => 'sometimes|required|string|unique:products,reference,' . $produit->id,
-            'stock' => 'sometimes|required|integer|min:0',
             'stock_min' => 'sometimes|required|integer|min:0',
-            'price' => 'sometimes|required|numeric|min:0',
             'tva_id' => 'sometimes|required|exists:tvas,id',
             'sous_famille_produit_id' => 'sometimes|required|exists:sous_famille_produits,id'
         ]);
 
-        // Mettre à jour les champs simples du produit
         $produit->fill($fields);
-
-        // Gestion spéciale du stock
-        if ($request->has('stock')) {
-            $newStockValue = $request->stock;
-
-            if ($oldStock == 0) {
-                // Cas 1 : ancien stock = 0 → on additionne
-                $produit->stock = $oldStock + $newStockValue;
-            } else {
-                // Cas 2 : ancien stock > 0 → on remplace
-                $produit->stock = $newStockValue;
-            }
-        }
-
         $produit->save();
 
-        // Recharger valeurs après mise à jour
-        $newStock = $produit->stock;
-        $newPrice = $produit->price;
-
-        // 🔹 Synchroniser la table STOCKS
-        $stock = Stock::where('produit_id', $produit->id)->first();
-        if ($stock) {
-            $stock->qteEntree = $newStock;
-            $stock->valeurStock = $newStock * $newPrice;
-            $stock->save();
-        }
-
-        // 🔹 Synchroniser la table ENTREES
-        $entree = Entree::where('produit_id', $produit->id)->first();
-        if ($entree) {
-            $entree->quantite = $newStock;
-            $entree->prixUnitaire = $newPrice;
-            $entree->save();
-        }
-
-        // 🔹 Supprimer l'alerte si le stock dépasse stock_min
+        // Supprimer l'alerte si le stock dépasse stock_min
         $alerte = Alerte::where('produit_id', $produit->id)->first();
-        if ($alerte && $newStock > $produit->stock_min) {
+        if ($alerte && $produit->stock > $produit->stock_min) {
             try {
                 $alerte->delete();
             } catch (\Exception $e) {
@@ -196,9 +129,8 @@ public function updateProduit(Request $request, $id)
         // Charger les relations pour la réponse
         $produit->load(['tva', 'sousFamille']);
 
-        // 🔹 Ajouter une notification si l'alerte est supprimée
-        $message = 'Produit mis à jour et synchronisé avec stock et entrée avec succès';
-        if ($alerte && $newStock > $produit->stock_min) {
+        $message = 'Produit mis à jour avec succès';
+        if ($alerte && $produit->stock > $produit->stock_min) {
             $message .= ', alerte supprimée';
         }
 
@@ -207,64 +139,6 @@ public function updateProduit(Request $request, $id)
             'produit' => $produit
         ]);
     }
-
-   /*public function updateProduit(Request $request, $id) 
-{
-
-    $produit = Product::findOrFail($id);
-
-    // Sauvegarder les anciennes valeurs AVANT la mise à jour
-    $oldStock = $produit->stock;
-    $oldPrice = $produit->price;
-
-    // Valider les champs
-    $fields = $request->validate([
-        'name' => 'sometimes|required|string',
-        'reference' => 'sometimes|required|string|unique:products,reference,' . $produit->id,
-        'stock' => 'sometimes|required|integer',
-        'stock_min' => 'sometimes|required|integer',
-        'price' => 'sometimes|required|numeric',
-        'tva_id' => 'sometimes|required|exists:tvas,id',
-        'sous_famille_produit_id' => 'sometimes|required|exists:sous_famille_produits,id'
-    ]);
-
-    // Mettre à jour le produit
-    $produit->update($fields);
-
-    // ⚠️ Recharger les valeurs mises à jour
-    $newStock = $produit->stock;
-    $newPrice = $produit->price;
-
-
-    // Mettre à jour la table STOCKS
-    $stock = Stock::where('produit_id', $produit->id)->first();
-    if ($stock) {
-        $stock->qteEntree = $newStock;
-        $stock->valeurStock = $stock->qteEntree * $newPrice;
-        $stock->save();
-    }
-
-    // Mettre à jour la table ENTREES
-    $entree = Entree::where('produit_id', $produit->id)->first();
-    if ($entree) {
-        $entree->quantite = $newStock;
-        $entree->prixUnitaire = $newPrice;
-        $entree->save();
-    }
-
-    // Charger les relations
-    $produit->load(['tva', 'sousFamille']);
-
-    return response()->json([
-        'message' => 'Produit et données liées (stock et entrée) mis à jour avec succès',
-        'produit' => $produit
-    ]);
-}
-
-    public function showProduit(Product $product)
-    {
-        return $product->load(['tva', 'sousFamille']);
-    }*/
 
    
 

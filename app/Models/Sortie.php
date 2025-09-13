@@ -2,30 +2,34 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\Product;
 
 class Sortie extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
-        'produit_id',
         'destination',
         'commentaire',
-        'quantite',
-        'date'
+        'date',
     ];
 
-    public function produit()
+    public function produits()
     {
-        return $this->belongsTo(Product::class, 'produit_id');
+        return $this->belongsToMany(Product::class, 'sortie_product', 'sortie_id', 'produit_id')
+                    ->withPivot('quantite')
+                    ->withTimestamps();
     }
 
     public function user()
     {
         return $this->belongsTo(User::class);
     }
+
     public function employe()
-{
-    return $this->belongsTo(Employe::class);
-}
+    {
+        return $this->belongsTo(Employe::class);
+    }
 
 }

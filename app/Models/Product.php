@@ -37,20 +37,36 @@ protected $table = 'products';
     }
 
     public function entrees()
-    {
-        return $this->belongsToMany(Entree::class, 'entree_product', 'produit_id', 'entree_id')
-                    ->withPivot('quantite', 'prixUnitaire')
-                    ->withTimestamps();
-    }
+{
+    return $this->belongsToMany(Entree::class, 'entree_product', 'produit_id', 'entree_id')
+                ->withPivot('quantite', 'prixUnitaire', 'quantite_restante')
+                ->withTimestamps();
+}
 
-    public function sorties()
+     public function sorties()
     {
-        return $this->hasMany(Sortie::class, 'produit_id');
+        return $this->belongsToMany(Sortie::class, 'sortie_product', 'produit_id', 'sortie_id')
+                    ->withPivot('quantite')
+                    ->withTimestamps();
     }
 
     public function stock()
     {
         return $this->hasMany(Stock::class, 'produit_id');
     }
+
+   public function calculerValeurStock()
+{
+    // Récupérer toutes les entrées liées à ce produit via la table pivot
+    $entrees = $this->entrees()->withPivot('quantite_restante', 'prixUnitaire')->get();
+
+    $valeurTotale = 0;
+
+    foreach ($entrees as $entree) {
+        $valeurTotale += $entree->pivot->quantite_restante * $entree->pivot->prixUnitaire;
+    }
+
+    return $valeurTotale;
+}
 
 }

@@ -126,37 +126,34 @@ class EntreeController extends Controller
             ]);
 
             foreach ($request->produits as $produitData) {
+                // Ajout du lot avec quantite_restante = quantite
                 $entree->produits()->attach($produitData['produit_id'], [
                     'quantite' => $produitData['quantite'],
                     'prixUnitaire' => $produitData['prixUnitaire'],
+                    'quantite_restante' => $produitData['quantite'],
                 ]);
 
+                // Mise à jour du stock global du produit
                 $product = Product::find($produitData['produit_id']);
                 $product->stock += $produitData['quantite'];
                 $product->save();
 
-                // Vérifier et supprimer l'alerte si le stock dépasse stock_min
+                // Vérifier et supprimer l'alerte si stock >= stock_min
                 $alerte = Alerte::where('produit_id', $produitData['produit_id'])->first();
                 if ($alerte && $product->stock >= $product->stock_min) {
                     $alerte->delete();
                 }
 
-                $stock = Stock::where('produit_id', $produitData['produit_id'])->first();
-                if (!$stock) {
-                    $stock = new Stock();
-                    $stock->produit_id = $produitData['produit_id'];
-                    $stock->qteEntree = 0;
-                    $stock->qteSortie = 0;
-                    $stock->valeurStock = 0;
-                }
+                // Mise à jour du Stock global en recalculant via FIFO
+                $stock = Stock::firstOrNew(['produit_id' => $produitData['produit_id']]);
                 $stock->qteEntree += $produitData['quantite'];
-                $stock->valeurStock = ($stock->qteEntree - $stock->qteSortie) * $produitData['prixUnitaire'];
+                $stock->valeurStock = $product->calculerValeurStock(); // méthode FIFO dans Product.php
                 $stock->save();
             }
 
             DB::commit();
             return response()->json([
-                'message' => 'Entrée enregistrée et stock mis à jour',
+                'message' => 'Entrée enregistrée et stock mis à jour (FIFO)',
                 'data' => $entree->load(['produits.tva', 'fournisseur']),
             ], 201);
         } catch (\Exception $e) {
@@ -165,6 +162,7 @@ class EntreeController extends Controller
         }
     }
 
+    // ❌ Supprimer une entrée
     public function suppEntree($id)
     {
         $entree = Entree::findOrFail($id);
@@ -173,16 +171,24 @@ class EntreeController extends Controller
         try {
             foreach ($entree->produits as $produit) {
                 $product = Product::find($produit->id);
+
+                // Vérif stock
                 if ($product->stock < $produit->pivot->quantite) {
                     return response()->json(['message' => 'Stock insuffisant pour le produit ' . $produit->name], 400);
                 }
+
+                // Mise à jour stock global
                 $product->stock -= $produit->pivot->quantite;
                 $product->save();
 
+                // Suppression du lot
+                $produit->pivot->delete();
+
+                // Recalculer valeur du stock
                 $stock = Stock::where('produit_id', $produit->id)->first();
                 if ($stock) {
                     $stock->qteEntree -= $produit->pivot->quantite;
-                    $stock->valeurStock = ($stock->qteEntree - $stock->qteSortie) * $produit->pivot->prixUnitaire;
+                    $stock->valeurStock = $product->calculerValeurStock();
                     $stock->save();
                 }
             }
@@ -191,15 +197,15 @@ class EntreeController extends Controller
             $entree->delete();
 
             DB::commit();
-            return response()->json(['message' => 'Entrée supprimée et stock mis à jour']);
+            return response()->json(['message' => 'Entrée supprimée et stock recalculé (FIFO)']);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Erreur lors de la suppression de l\'entrée : ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Erreur lors de la suppression : ' . $e->getMessage()], 500);
         }
     }
 
-    // Mettre à jour une entrée
-public function updateEntree(Request $request, $id)
+    // ✏️ Mettre à jour une entrée
+    public function updateEntree(Request $request, $id)
     {
         $entree = Entree::findOrFail($id);
 
@@ -218,58 +224,53 @@ public function updateEntree(Request $request, $id)
         try {
             $entree->fill($request->only(['numBond', 'codeMarche', 'date', 'fournisseur_id']));
             $entree->save();
-        
+
             if ($request->has('produits')) {
+                // Annuler anciens lots
                 foreach ($entree->produits as $produit) {
                     $product = Product::find($produit->id);
                     $product->stock -= $produit->pivot->quantite;
-                    if ($product->stock < 0) {
-                        return response()->json(['message' => 'Stock insuffisant pour le produit ' . $produit->name], 400);
-                    }
                     $product->save();
+
+                    $produit->pivot->delete();
 
                     $stock = Stock::where('produit_id', $produit->id)->first();
                     if ($stock) {
                         $stock->qteEntree -= $produit->pivot->quantite;
-                        $stock->valeurStock = ($stock->qteEntree - $stock->qteSortie) * $produit->pivot->prixUnitaire;
+                        $stock->valeurStock = $product->calculerValeurStock();
                         $stock->save();
                     }
                 }
 
                 $entree->produits()->detach();
 
+                // Ajouter nouveaux lots
                 foreach ($request->produits as $produitData) {
                     $entree->produits()->attach($produitData['produit_id'], [
                         'quantite' => $produitData['quantite'],
                         'prixUnitaire' => $produitData['prixUnitaire'],
+                        'quantite_restante' => $produitData['quantite'],
                     ]);
 
                     $product = Product::find($produitData['produit_id']);
                     $product->stock += $produitData['quantite'];
                     $product->save();
 
-                    $stock = Stock::where('produit_id', $produitData['produit_id'])->first();
-                    if (!$stock) {
-                        $stock = new Stock();
-                        $stock->produit_id = $produitData['produit_id'];
-                        $stock->qteEntree = 0;
-                        $stock->qteSortie = 0;
-                        $stock->valeurStock = 0;
-                    }
+                    $stock = Stock::firstOrNew(['produit_id' => $produitData['produit_id']]);
                     $stock->qteEntree += $produitData['quantite'];
-                    $stock->valeurStock = ($stock->qteEntree - $stock->qteSortie) * $produitData['prixUnitaire'];
+                    $stock->valeurStock = $product->calculerValeurStock();
                     $stock->save();
                 }
             }
 
             DB::commit();
             return response()->json([
-                'message' => 'Entrée mise à jour avec ajustement du stock',
+                'message' => 'Entrée mise à jour avec ajustement du stock (FIFO)',
                 'data' => $entree->load(['produits.tva', 'fournisseur']),
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Erreur lors de la mise à jour de l\'entrée : ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Erreur lors de la mise à jour : ' . $e->getMessage()], 500);
         }
     }
 

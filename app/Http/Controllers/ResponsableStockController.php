@@ -17,70 +17,75 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Alerte; 
+use Illuminate\Support\Facades\DB; 
 
 
 class ResponsableStockController extends Controller
 {
 
-public function statistiquesGlobales()
-{
-    // Total produits (COUNT)
-    $totalProduits = Product::count();
+  public function statistiquesGlobales()
+    {
+        // Total produits (COUNT)
+        $totalProduits = Product::count();
 
-    // Produits en rupture (stock = 0)
-    $ruptures = Product::select('id', 'name', 'stock')
-        ->where('stock', '=', 0)
-        ->get();
+        // Produits en rupture (stock = 0)
+        $ruptures = Product::select('id', 'name', 'stock')
+            ->where('stock', '=', 0)
+            ->get();
 
-    // Produits en alerte (stock <= stock_min)
-    $alertes = Product::whereColumn('stock', '<', 'stock_min')->count();
+        // Produits en alerte (stock <= stock_min)
+        $alertes = Product::whereColumn('stock', '<', 'stock_min')->count();
 
-    // Top 5 produits les plus demandés
-    $topProduits = Product::select('products.id', 'products.name')
-        ->withCount('sorties')
-        ->orderByDesc('sorties_count')
-        ->take(5)
-        ->get();
+        // Top 5 produits les plus demandés
+        $topProduits = Product::select('products.id', 'products.name')
+            ->join('sortie_product', 'products.id', '=', 'sortie_product.produit_id')
+            ->groupBy('products.id', 'products.name')
+            ->selectRaw('SUM(sortie_product.quantite) as sorties_total')
+            ->orderByDesc('sorties_total')
+            ->take(5)
+            ->get();
 
-    // Fournisseur le plus utilisé
-    $fournisseurPlusUtilise = \DB::table('entree_product')
-        ->join('entrees', 'entree_product.entree_id', '=', 'entrees.id')
-        ->join('fournisseurs', 'entrees.fournisseur_id', '=', 'fournisseurs.id')
-        ->select('fournisseurs.raisonSocial', \DB::raw('COUNT(entree_product.produit_id) as total'))
-        ->groupBy('fournisseurs.id', 'fournisseurs.raisonSocial')
-        ->orderByDesc('total')
-        ->first();
+        // Fournisseur le plus utilisé
+        $fournisseurPlusUtilise = DB::table('entree_product')
+            ->join('entrees', 'entree_product.entree_id', '=', 'entrees.id')
+            ->join('fournisseurs', 'entrees.fournisseur_id', '=', 'fournisseurs.id')
+            ->select('fournisseurs.raisonSocial', DB::raw('COUNT(entree_product.produit_id) as total'))
+            ->groupBy('fournisseurs.id', 'fournisseurs.raisonSocial')
+            ->orderByDesc('total')
+            ->first();
 
-    // TVA la plus utilisée
-    $tvaPlusUtilisee = \DB::table('products')
-        ->join('tvas', 'products.tva_id', '=', 'tvas.id')
-        ->select('tvas.taux', \DB::raw('COUNT(products.id) as total'))
-        ->groupBy('tvas.id', 'tvas.taux')
-        ->orderByDesc('total')
-        ->first();
+        // TVA la plus utilisée
+        $tvaPlusUtilisee = DB::table('products')
+            ->join('tvas', 'products.tva_id', '=', 'tvas.id')
+            ->select('tvas.taux', DB::raw('COUNT(products.id) as total'))
+            ->groupBy('tvas.id', 'tvas.taux')
+            ->orderByDesc('total')
+            ->first();
 
-    // Nombre total de produits en stock
-    $totalStock = Stock::count();
+        // Nombre total de produits en stock
+        $totalStock = Stock::count();
 
-    // Nombre de demandes en attente
-    $totalDemande = Demande::where('etat', 'en_attente')->count();
+        // Nombre de demandes en attente
+        $totalDemande = Demande::where('etat', 'en_attente')->count();
 
-    // Nombre de produits non sortis
-    $produitsNonSortis = Product::whereDoesntHave('sorties')->select('id', 'name', 'stock')->get();
+        // Produits non sortis
+        $produitsNonSortis = Product::whereDoesntHave('sorties', function ($query) {
+            $query->where('sortie_product.quantite', '>', 0);
+        })->select('id', 'name', 'stock')->get();
 
-    return response()->json([
-        'total_produits' => $totalProduits,
-        'produits_en_rupture' => $ruptures,
-        'produits_en_alerte' => $alertes,
-        'produits_les_plus_demandes' => $topProduits,
-        'fournisseur_plus_utilise' => $fournisseurPlusUtilise ? $fournisseurPlusUtilise->raisonSocial : null,
-        'tva_plus_utilisee' => $tvaPlusUtilisee ? $tvaPlusUtilisee->taux : null,
-        'total_stock' => $totalStock,
-        'produits_non_sortis' => $produitsNonSortis,
-        'demandes_en_attente' => $totalDemande,
-    ]);
-}
 
+        return response()->json([
+            'total_produits' => $totalProduits,
+            'produits_en_rupture' => $ruptures,
+            'produits_en_alerte' => $alertes,
+            'produits_les_plus_demandes' => $topProduits,
+            'fournisseur_plus_utilise' => $fournisseurPlusUtilise ? $fournisseurPlusUtilise->raisonSocial : null,
+            'tva_plus_utilisee' => $tvaPlusUtilisee ? $tvaPlusUtilisee->taux : null,
+            'total_stock' => $totalStock,
+            'produits_non_sortis' => $produitsNonSortis,
+            'demandes_en_attente' => $totalDemande,
+        ]);
+    }
 
 
 
@@ -199,20 +204,50 @@ public function refuserDemande($id)
         return response()->json(['message' => 'État de la demande mis à jour avec succès']);
     }
 
-    // 📋 Lister toutes les demandes par état
-   public function demandesParEtat($etat)
-{
-    if (!in_array($etat, ['en_attente', 'validée', 'refusée'])) {
-        return response()->json(['message' => 'État invalide'], 400);
+// 📋 Lister toutes les demandes par état
+    public function demandesParEtat($etat)
+    {
+        if (!in_array($etat, ['en_attente', 'validée', 'refusée'])) {
+            return response()->json(['message' => 'État invalide'], 400);
+        }
+
+        $demandes = Demande::with([
+            'produit',
+            'user.employe',
+            'user.organigramme' => function ($query) {
+                $query->with('parent'); // Eager load parent organigrammes
+            }
+        ])
+            ->where('etat', $etat)
+            ->get();
+
+        // Enrich each request with organigramme hierarchy
+        $demandes->each(function ($demande) {
+            if ($demande->user && $demande->user->organigramme) {
+                $demande->user->organigramme->hierarchy = $this->buildHierarchy($demande->user->organigramme);
+            }
+        });
+
+        return response()->json($demandes);
     }
 
-    $demandes = Demande::with(['produit', 'user.employe', 'user.organigramme'])
-        ->where('etat', $etat)
-        ->get();
+    // Helper method to build the organigramme hierarchy
+    private function buildHierarchy($organigramme)
+    {
+        $hierarchy = [];
+        $current = $organigramme;
 
-    return response()->json($demandes);
-}
+        while ($current) {
+            $hierarchy[] = [
+                'id' => $current->id,
+                'nom' => $current->nom,
+                'type' => $current->type,
+            ];
+            $current = $current->parent;
+        }
 
+        return array_reverse($hierarchy); // Reverse to get Direction > Department > Division
+    }
     
 
     // 📥 Liste des entrées

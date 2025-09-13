@@ -14,10 +14,11 @@ class Entree extends Model
 
     public function produits()
     {
-        return $this->belongsToMany(Product::class, 'entree_product', 'entree_id', 'produit_id')
-                    ->withPivot('quantite', 'prixUnitaire')
-                    ->withTimestamps();
+    return $this->belongsToMany(Product::class, 'entree_product', 'entree_id', 'produit_id')
+        ->withPivot('quantite', 'prixUnitaire', 'quantite_restante') 
+        ->withTimestamps();
     }
+
 
     public function fournisseur()
     {

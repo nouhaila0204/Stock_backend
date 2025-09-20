@@ -7,6 +7,7 @@ use App\Http\Middleware\AdminMiddleware;
 use App\Http\Middleware\EmployeMiddleware;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\DB;
 use App\Http\Controllers\TVAController;
 use App\Http\Controllers\FamilleProduitController;
 use App\Http\Controllers\SousFamilleProduitController;
@@ -52,7 +53,6 @@ Route::middleware(['auth:sanctum', ResponsableStockMiddleware::class])->group(fu
  Route::post('/sorties', [SortieController::class, 'ajouterSortie']);
  Route::get('/sorties/filtrer', [SortieController::class, 'filtrer']);
  Route::get('/sorties/search', [SortieController::class, 'search']);
-
  // Les routes avec paramètres DOIVENT venir après
  Route::get('/sorties/{id}', [SortieController::class, 'showSortie']);
  Route::get('/sorties/{id}/bon', [SortieController::class, 'afficherBonSortie']);
@@ -65,9 +65,6 @@ Route::middleware(['auth:sanctum', ResponsableStockMiddleware::class])->group(fu
     Route::get('/stockView', [StockController::class, 'index']);
     Route::get('/stock/{id}', [StockController::class, 'show']);
     Route::get('/stock/export-stock/{annee}', [StockController::class, 'exportStock']);
-
-
-
 
 
     // 🔐 Produits
@@ -105,7 +102,6 @@ Route::middleware(['auth:sanctum', ResponsableStockMiddleware::class])->group(fu
     Route::put('/sous-familles/{id}', [SousFamilleProduitController::class, 'update']);
     Route::delete('/sous-familles/{id}', [SousFamilleProduitController::class, 'destroy']);
 
-    
     //alertes
     Route::apiResource('alertes', AlerteController::class);
     Route::get('/alertes', [ResponsableStockController::class, 'voirAlertes']);
@@ -117,7 +113,6 @@ Route::middleware(['auth:sanctum', ResponsableStockMiddleware::class])->group(fu
     Route::put('/demande/{id}/valider', [ResponsableStockController::class, 'validerDemande']);
     Route::put('/demande/{id}/refuser', [ResponsableStockController::class, 'refuserDemande']);
     Route::put('/demande/{id}/changer-etat', [ResponsableStockController::class, 'changerEtatDemande']);
-
 
     //FOURNISSEURS
     Route::get('/fournisseurs', [ResponsableStockController::class, 'indexFournisseurs']);
@@ -131,10 +126,6 @@ Route::middleware(['auth:sanctum', ResponsableStockMiddleware::class])->group(fu
 
 });
 
-
-
-
-
    //admin
 Route::middleware(['auth:sanctum', AdminMiddleware::class])->group(function () {
     Route::post('/addUsers', [AuthController::class, 'register']);// ➕ Ajouter un utilisateur 
@@ -142,6 +133,7 @@ Route::middleware(['auth:sanctum', AdminMiddleware::class])->group(function () {
     Route::get('/usersview/{id}', [AdminController::class, 'showUser']);      // 👁 Voir un utilisateur
     Route::put('/UPusers/{id}', [AdminController::class, 'updateUser']);    // ✏ Modifier un utilisateur
     Route::delete('/suppusers/{id}', [AdminController::class, 'destroyUser']); // ❌ Supprimer un utilisateur
+    Route::post('/change-password/{user}', [AuthController::class, 'changePassword']);
 
 
 
@@ -176,13 +168,11 @@ Route::middleware(['auth:sanctum', AdminMiddleware::class])->group(function () {
 //employe
 Route::middleware(['auth:sanctum', EmployeMiddleware::class])->group(function () {
     Route::get('/employe/products', [ProductController::class, 'indexProduit']);
-    Route::get('/employe/voirStock', [EmployeController::class, 'consulterStock']);
-    Route::get('/employe/historiquesdemandes', [EmployeController::class, 'consulterHistoriqueDemande']);
     Route::post('/employe/demandes', [EmployeController::class, 'storeDemande']);
-    Route::get('/employe/demandes/{id}', [EmployeController::class, 'showDemande']);
     Route::put('/employe/demandes/{id}', [EmployeController::class, 'updateDemande']);
     Route::delete('/employe/demandes/{id}', [EmployeController::class, 'deleteDemande']);
+    Route::get('/employe/demandes/{id}', [EmployeController::class, 'showDemande']);
+    Route::get('/employe/voirStock', [EmployeController::class, 'consulterStock']);
+    Route::get('/employe/historiquesdemandes', [EmployeController::class, 'consulterHistoriqueDemande']);
 });
-
-   
 });

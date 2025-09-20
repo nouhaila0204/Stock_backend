@@ -163,8 +163,52 @@ public function destroyFournisseur($id)
 
 
 
+public function demandesParEtat($etat)
+{
+    if (!in_array($etat, ['en_attente', 'validée', 'refusée'])) {
+        return response()->json(['message' => 'État invalide'], 400);
+    }
 
-    //Validation des demandes
+    $demandes = Demande::with([
+        'products',
+        'user.employe',
+        'user.organigramme' => function ($query) {
+            $query->with('parent');
+        }
+    ])
+    ->where('etat', $etat)
+    ->get()
+    ->map(function ($demande) {
+        // Formater les produits dans le champ 'produits' (pas 'produits_details')
+        $demande->produits = $demande->products->map(function ($product) {
+            return [
+                'id' => $product->id,
+                'nom' => $product->name,
+                'quantite' => $product->pivot->quantite
+            ];
+        });
+
+        // Pour la compatibilité avec l'ancien frontend
+        $demande->nom_produit = $demande->products->isNotEmpty() 
+            ? $demande->products->first()->name 
+            : 'N/A';
+        
+        $demande->quantite = $demande->products->isNotEmpty()
+            ? $demande->products->first()->pivot->quantite
+            : 0;
+
+        // Construire la hiérarchie
+        if ($demande->user && $demande->user->organigramme) {
+            $demande->user->organigramme->hierarchy = $this->buildHierarchy($demande->user->organigramme);
+        }
+
+        return $demande;
+    });
+
+    return response()->json($demandes);
+}
+
+//Validation des demandes
 public function validerDemande($id)
 {
     $demande = Demande::findOrFail($id);
@@ -173,7 +217,13 @@ public function validerDemande($id)
     }
     $demande->etat = 'validée';
     $demande->save();
-    return response()->json(['message' => 'Demande validée avec succès', 'data' => $demande]);
+    
+    // Retourner les données avec les produits
+    $demande->load('products');
+    return response()->json([
+        'message' => 'Demande validée avec succès', 
+        'data' => $demande
+    ]);
 }
 
 public function refuserDemande($id)
@@ -184,72 +234,51 @@ public function refuserDemande($id)
     }
     $demande->etat = 'refusée';
     $demande->save();
-    return response()->json(['message' => 'Demande refusée avec succès', 'data' => $demande]);
+    
+    // Retourner les données avec les produits
+    $demande->load('products');
+    return response()->json([
+        'message' => 'Demande refusée avec succès', 
+        'data' => $demande
+    ]);
 }
 
+// 🔁 Changer l'état d'une demande
+public function changerEtatDemande($id, Request $request)
+{
+    $request->validate([
+        'etat' => 'required|in:en_attente,validée,refusée',
+    ]);
 
+    $demande = Demande::findOrFail($id);
+    $demande->etat = $request->etat;
+    $demande->save();
 
-    // 🔁 Changer l'état d'une demande (optionnel)
-    public function changerEtatDemande($id, Request $request)
-    {
+    // Retourner les données avec les produits
+    $demande->load('products');
+    return response()->json([
+        'message' => 'État de la demande mis à jour avec succès',
+        'data' => $demande
+    ]);
+}
 
-        $request->validate([
-            'etat' => 'required|in:en_attente,validée,refusée',
-        ]);
+// Helper method to build the organigramme hierarchy
+private function buildHierarchy($organigramme)
+{
+    $hierarchy = [];
+    $current = $organigramme;
 
-        $demande = Demande::findOrFail($id);
-        $demande->etat = $request->etat;
-        $demande->save();
-
-        return response()->json(['message' => 'État de la demande mis à jour avec succès']);
+    while ($current) {
+        $hierarchy[] = [
+            'id' => $current->id,
+            'nom' => $current->nom,
+            'type' => $current->type,
+        ];
+        $current = $current->parent;
     }
 
-// 📋 Lister toutes les demandes par état
-    public function demandesParEtat($etat)
-    {
-        if (!in_array($etat, ['en_attente', 'validée', 'refusée'])) {
-            return response()->json(['message' => 'État invalide'], 400);
-        }
-
-        $demandes = Demande::with([
-            'produit',
-            'user.employe',
-            'user.organigramme' => function ($query) {
-                $query->with('parent'); // Eager load parent organigrammes
-            }
-        ])
-            ->where('etat', $etat)
-            ->get();
-
-        // Enrich each request with organigramme hierarchy
-        $demandes->each(function ($demande) {
-            if ($demande->user && $demande->user->organigramme) {
-                $demande->user->organigramme->hierarchy = $this->buildHierarchy($demande->user->organigramme);
-            }
-        });
-
-        return response()->json($demandes);
-    }
-
-    // Helper method to build the organigramme hierarchy
-    private function buildHierarchy($organigramme)
-    {
-        $hierarchy = [];
-        $current = $organigramme;
-
-        while ($current) {
-            $hierarchy[] = [
-                'id' => $current->id,
-                'nom' => $current->nom,
-                'type' => $current->type,
-            ];
-            $current = $current->parent;
-        }
-
-        return array_reverse($hierarchy); // Reverse to get Direction > Department > Division
-    }
-    
-
+    return array_reverse($hierarchy);
+}
     // 📥 Liste des entrées
     /*public function showEntree()
     {

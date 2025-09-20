@@ -37,7 +37,7 @@ class AuthController extends Controller
     ]);
     $fullName = $request['prenom'] . ' ' . $request['nom'];
 
-    // Vérifie qu'il n'existe qu'un seul responsable du stock
+    /* Vérifie qu'il n'existe qu'un seul responsable du stock
     if ($request->role === 'responsablestock') {
         $existe = User::where('role', 'responsablestock')->exists();
         if ($existe) {
@@ -57,7 +57,7 @@ class AuthController extends Controller
                 'message' => 'Il y a possibilité d\'avoir un seul administrateur.'
             ], 409);
         }
-    }
+    }*/
 
     // Créer d'abord l'utilisateur
     $user = User::create([
@@ -162,5 +162,54 @@ class AuthController extends Controller
             'success' => true,
             'message' => 'Logged out from all devices successfully'
         ]);
+    }
+
+    
+
+    public function changePassword(Request $request, $userId)
+    {
+        try {
+            // Validation des données
+            $validator = Validator::make($request->all(), [
+                'current_password' => 'required',
+                'new_password' => 'required|min:8|confirmed',
+                'new_password_confirmation' => 'required'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur de validation',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Trouver l'utilisateur
+            $user = User::findOrFail($userId);
+
+            // Vérifier le mot de passe actuel
+            if (!Hash::check($request->current_password, $user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mot de passe actuel incorrect'
+                ], 401);
+            }
+
+            // Mettre à jour le mot de passe
+            $user->password = Hash::make($request->new_password);
+            $user->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Mot de passe modifié avec succès'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la modification du mot de passe',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

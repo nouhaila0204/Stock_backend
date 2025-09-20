@@ -19,10 +19,13 @@ class Demande extends Model
     return $this->belongsTo(User::class);
 }
 
-public function produit()
-{
-    return $this->belongsTo(Product::class);
-}
+public function products()
+    {
+        return $this->belongsToMany(Product::class, 'demande_product')
+                    ->withPivot('quantite')
+                    ->withTimestamps();
+    }
+
 
 
 }
